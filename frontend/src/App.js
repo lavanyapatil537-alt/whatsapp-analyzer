@@ -85,7 +85,34 @@ const WARNING = "#f97316";
 function formatDateLabel(value) {
   if (!value) return "—";
 
-  const parsed = new Date(value);
+  const trimmed = value.trim();
+  const analyzerDateMatch = trimmed.match(
+    /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})(?:,\s*(\d{1,2}:\d{2}))?$/
+  );
+
+  if (analyzerDateMatch) {
+    const [, dayText, monthText, yearText, timeText] = analyzerDateMatch;
+    const day = Number(dayText);
+    const month = Number(monthText);
+    const year = yearText.length === 2 ? 2000 + Number(yearText) : Number(yearText);
+    const parsed = new Date(year, month - 1, day);
+
+    if (
+      !Number.isNaN(parsed.getTime()) &&
+      parsed.getDate() === day &&
+      parsed.getMonth() === month - 1 &&
+      parsed.getFullYear() === year
+    ) {
+      const formatted = parsed.toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      return timeText ? `${formatted}, ${timeText}` : formatted;
+    }
+  }
+
+  const parsed = new Date(trimmed);
   if (Number.isNaN(parsed.getTime())) return value;
 
   return parsed.toLocaleDateString("en-IN", {
