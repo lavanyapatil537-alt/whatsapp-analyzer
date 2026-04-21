@@ -2,94 +2,213 @@ import { useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
+  PieChart, Pie, Cell,
 } from "recharts";
+
+const FADE_IN = `
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0);    }
+  }
+`;
+
+const anim = (delay = 0) => ({
+  animation: `fadeInUp 0.5s ease ${delay}s both`,
+});
 
 const API = "http://localhost:5000";
 
-// ── UserCard ──────────────────────────────────────────────────────────────────
-function UserCard({ user, rank }) {
+const DARK = {
+  bg: "#0f0f1a",
+  card: "#17192a",
+  cardBorder: "#2a2d3e",
+  headerBorder: "#25283a",
+  text: "#ffffff",
+  subtext: "#d1d5db",
+  muted: "#8b93a7",
+  mutedAlt: "#a5adbf",
+  statLabel: "#8a91a4",
+  chartGrid: "#25283a",
+  chartAxis: "#8b93a7",
+  chartLegend: "#a5adbf",
+  tooltipBg: "#111322",
+  tooltipBorder: "#34384c",
+  uploadBorder: "#434965",
+  cardToggleOff: "#242844",
+  msgHistoryBg: "#101321",
+  msgHistoryBorder: "#2a2d3e",
+  msgDivider: "#24283a",
+  msgDate: "#94a3b8",
+  pillBg: "#17192a",
+  pillBorder: "#34384c",
+  pillText: "#d1d5db",
+  footerText: "#6b7280",
+};
+
+const LIGHT = {
+  bg: "#f0f4fc",
+  card: "#ffffff",
+  cardBorder: "#e2e8f0",
+  headerBorder: "#dbe3ef",
+  text: "#1a1a2e",
+  subtext: "#334155",
+  muted: "#64748b",
+  mutedAlt: "#94a3b8",
+  statLabel: "#64748b",
+  chartGrid: "#e5e7eb",
+  chartAxis: "#94a3b8",
+  chartLegend: "#64748b",
+  tooltipBg: "#ffffff",
+  tooltipBorder: "#dbe3ef",
+  uploadBorder: "#cbd5e1",
+  cardToggleOff: "#ede9fe",
+  msgHistoryBg: "#f8fafc",
+  msgHistoryBorder: "#e2e8f0",
+  msgDivider: "#edf2f7",
+  msgDate: "#64748b",
+  pillBg: "#ffffff",
+  pillBorder: "#e2e8f0",
+  pillText: "#334155",
+  footerText: "#94a3b8",
+};
+
+const ACCENT = "#6d5ef6";
+const ACCENT_SOFT = "#8b7fff";
+const INFO = "#38bdf8";
+const SUCCESS = "#22c55e";
+const WARNING = "#f97316";
+
+function formatDateLabel(value) {
+  if (!value) return "—";
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return parsed.toLocaleDateString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function getCardShadow(theme) {
+  return theme.card === DARK.card
+    ? "0 20px 40px rgba(0, 0, 0, 0.24)"
+    : "0 18px 36px rgba(15, 23, 42, 0.08)";
+}
+
+function UserCard({ user, rank, theme }) {
   const [open, setOpen] = useState(false);
 
-  const COLORS = ["#C07D30", "#7B7BCC", "#7B7BCC", "#7B7BCC", "#7B7BCC"];
-  const color  = COLORS[rank] ?? "#7B7BCC";
-  // Backend returns newest-first; display as-is (most recent message at top)
-  const msgs   = user.recentMsgs ?? [];
+  const colors = ["#c0843d", ACCENT_SOFT, INFO, "#fb7185", SUCCESS];
+  const color = colors[rank] ?? ACCENT_SOFT;
+  const msgs = user.recentMsgs ?? [];
 
   return (
     <div style={{
-      background: "#1a1a2e",
-      border: `1px solid ${open ? "#534AB7" : "#333"}`,
-      borderRadius: 12, padding: 20, minWidth: 180, flex: 1,
+      background: theme.card,
+      border: `1px solid ${open ? ACCENT : theme.cardBorder}`,
+      borderRadius: 20,
+      padding: 20,
+      minWidth: 220,
+      flex: "1 1 240px",
+      boxShadow: getCardShadow(theme),
+      transition: "background 0.3s, border 0.3s, transform 0.2s",
     }}>
-      {/* Rank badge + name + count */}
-      <div style={{ textAlign: "center", marginBottom: 12 }}>
+      <div style={{ textAlign: "center", marginBottom: 14 }}>
         <div style={{
-          width: 48, height: 48, borderRadius: "50%", background: color,
-          color: "#fff", display: "flex", alignItems: "center",
-          justifyContent: "center", fontSize: 20, fontWeight: 700,
-          margin: "0 auto 8px",
+          width: 52,
+          height: 52,
+          borderRadius: "50%",
+          background: color,
+          color: "#fff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 20,
+          fontWeight: 700,
+          margin: "0 auto 10px",
         }}>
           {rank + 1}
         </div>
-        <div style={{ color: "#ccc", fontSize: 12, wordBreak: "break-all", lineHeight: 1.4 }}>
+        <div style={{ color: theme.subtext, fontSize: 14, wordBreak: "break-word", lineHeight: 1.5 }}>
           {user.user}
         </div>
-        <div style={{ color, fontSize: 26, fontWeight: 700, marginTop: 4 }}>
+        <div style={{ color, fontSize: 28, fontWeight: 800, marginTop: 8 }}>
           {user.count}
         </div>
-        <div style={{ color: "#888", fontSize: 12 }}>messages</div>
+        <div style={{ color: theme.mutedAlt, fontSize: 13 }}>messages</div>
       </div>
 
-      {/* Quick stats */}
       {user.stats && (
-        <div style={{ fontSize: 12, color: "#888", lineHeight: 2, marginBottom: 4 }}>
+        <div style={{ fontSize: 13, color: theme.mutedAlt, lineHeight: 1.9, marginBottom: 10 }}>
           {[
-            ["Active days", user.stats.active_days, "#7B7BCC"],
-            ["Avg / day",   user.stats.avg_per_day,  "#7B7BCC"],
-            ["Last seen",   user.stats.last_date,     null],
-          ].map(([lbl, val, col]) => (
-            <div key={lbl} style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>{lbl}</span>
-              <span style={col ? { color: col } : {}}>{val}</span>
+            ["Active days", user.stats.active_days, ACCENT_SOFT],
+            ["Avg / day", user.stats.avg_per_day, ACCENT_SOFT],
+            ["Last seen", formatDateLabel(user.stats.last_date), null],
+          ].map(([label, value, highlight]) => (
+            <div key={label} style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+              <span>{label}</span>
+              <span style={highlight ? { color: highlight, fontWeight: 600 } : { color: theme.subtext }}>
+                {value}
+              </span>
             </div>
           ))}
         </div>
       )}
 
-      {/* Toggle button */}
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen((current) => !current)}
         style={{
-          width: "100%", marginTop: 8, padding: "8px 0",
-          background: open ? "#534AB7" : "#2a2a4a",
-          color: "#fff", border: "none", borderRadius: 6,
-          cursor: "pointer", fontSize: 12,
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          width: "100%",
+          marginTop: 10,
+          padding: "10px 0",
+          background: open ? ACCENT : theme.cardToggleOff,
+          color: open ? "#fff" : theme.text,
+          border: "none",
+          borderRadius: 10,
+          cursor: "pointer",
+          fontSize: 13,
+          fontWeight: 700,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 6,
+          transition: "background 0.2s",
         }}
       >
         <span style={{ fontSize: 9 }}>{open ? "▲" : "▼"}</span>
-        {open ? "Hide History" : "Chat History"}
+        {open ? "Hide Recent Messages" : "Recent Messages"}
       </button>
 
-      {/* Message history dropdown */}
       {open && (
         <div style={{
-          marginTop: 8, maxHeight: 200, overflowY: "auto",
-          background: "#0d0f1a", borderRadius: 6, padding: 8,
-          borderTop: "1px solid #2a2d3e",
+          marginTop: 10,
+          maxHeight: 220,
+          overflowY: "auto",
+          background: theme.msgHistoryBg,
+          borderRadius: 12,
+          padding: 10,
+          borderTop: `1px solid ${theme.msgHistoryBorder}`,
         }}>
           {msgs.length === 0 ? (
-            <p style={{ color: "#555", fontSize: 11, textAlign: "center", margin: "8px 0" }}>
+            <p style={{ color: theme.muted, fontSize: 12, textAlign: "center", margin: "10px 0" }}>
               No messages found.
             </p>
           ) : (
-            msgs.map((msg, i) => (
-              <div key={i} style={{
-                marginBottom: 8, paddingBottom: 8,
-                borderBottom: i < msgs.length - 1 ? "1px solid #1a1d2e" : "none",
-              }}>
-                <div style={{ color: "#555", fontSize: 10 }}>{msg.date}</div>
-                <div style={{ color: "#ccc", fontSize: 12, lineHeight: 1.4, wordBreak: "break-word" }}>
+            msgs.map((msg, index) => (
+              <div
+                key={index}
+                style={{
+                  marginBottom: 10,
+                  paddingBottom: 10,
+                  borderBottom: index < msgs.length - 1 ? `1px solid ${theme.msgDivider}` : "none",
+                }}
+              >
+                <div style={{ color: theme.msgDate, fontSize: 12, marginBottom: 4 }}>
+                  {formatDateLabel(msg.date)}
+                </div>
+                <div style={{ color: theme.subtext, fontSize: 13, lineHeight: 1.5, wordBreak: "break-word" }}>
                   {msg.text}
                 </div>
               </div>
@@ -101,16 +220,18 @@ function UserCard({ user, rank }) {
   );
 }
 
-
-// ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [data,      setData]      = useState(null);
-  const [loading,   setLoading]   = useState(false);
-  const [error,     setError]     = useState(null);
-  // Increments on every successful upload → used as key on results div
-  // so React fully unmounts + remounts the entire results section, guaranteeing
-  // no stale child state (UserCard open/close, chart data, etc.) can carry over.
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [dark, setDark] = useState(true);
   const [uploadKey, setUploadKey] = useState(0);
+
+  const theme = dark ? DARK : LIGHT;
+  const surfaceShadow = getCardShadow(theme);
+  const panelBg = dark
+    ? "linear-gradient(180deg, rgba(23,25,42,0.98) 0%, rgba(16,19,33,0.98) 100%)"
+    : "linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.98) 100%)";
 
   async function handleFile(e) {
     const file = e.target.files?.[0];
@@ -118,29 +239,28 @@ export default function App() {
 
     console.log(`[Upload] ▶ file="${file.name}"  size=${file.size} bytes`);
 
-    // Reset all state before the new request
     setData(null);
     setError(null);
     setLoading(true);
 
     const form = new FormData();
-    form.append("file", file);   // key must match request.files["file"] in Flask
+    form.append("file", file);
 
     try {
       const res = await fetch(`${API}/analyze`, {
         method: "POST",
         body: form,
-        cache: "no-store",   // prevent browser / proxy returning a cached response
+        cache: "no-store",
       });
 
       console.log(`[Upload] HTTP ${res.status}`);
       const json = await res.json();
       console.log("[Upload] Response fields:", {
-        _id:                json._id,
-        total_messages:     json.total_messages,
-        unique_participants:json.unique_participants,
-        top_users:          json.top_users,
-        error:              json.error,
+        _id: json._id,
+        total_messages: json.total_messages,
+        unique_participants: json.unique_participants,
+        top_users: json.top_users,
+        error: json.error,
       });
 
       if (!res.ok || json.error) {
@@ -150,80 +270,177 @@ export default function App() {
         return;
       }
 
-      // Build chart data: one entry per day label
       const chartData = (json.labels ?? []).map((date, i) => ({
-        date,
+        date: formatDateLabel(date),
         activeUsers: json.active_users?.[i] ?? 0,
-        newJoiners:  json.new_joiners?.[i]  ?? 0,
+        newJoiners: json.new_joiners?.[i] ?? 0,
       }));
 
-      // Merge top_users + user_stats + user_messages into card objects
-      const top5 = (json.top_users ?? []).map(u => ({
-        user:       u.user,
-        count:      u.count,
-        stats:      json.user_stats?.[u.user]    ?? null,
+      const hourLabel = (h) =>
+        h === 0 ? "12AM" : h < 12 ? `${h}AM` : h === 12 ? "12PM" : `${h - 12}PM`;
+      const hourlyData = (json.hourly_activity ?? []).map((count, h) => ({
+        hour: hourLabel(h), messages: count,
+      }));
+
+      const typeColors = {
+        Text: "#5b8af5",
+        Media: ACCENT_SOFT,
+        Links: SUCCESS,
+        Deleted: WARNING,
+      };
+      const msgTypeData = json.msg_types
+        ? Object.entries({
+            Text: json.msg_types.text,
+            Media: json.msg_types.media,
+            Links: json.msg_types.link,
+            Deleted: json.msg_types.deleted,
+          })
+            .filter(([, value]) => value > 0)
+            .map(([name, value]) => ({ name, value, color: typeColors[name] }))
+        : [];
+
+      const top5 = (json.top_users ?? []).map((u) => ({
+        user: u.user,
+        count: u.count,
+        stats: json.user_stats?.[u.user] ?? null,
         recentMsgs: json.user_messages?.[u.user] ?? [],
       }));
 
-      console.log("[Upload] top5:", top5.map(u => `${u.user}(${u.count})`));
+      console.log("[Upload] top5:", top5.map((u) => `${u.user}(${u.count})`));
 
-      setUploadKey(k => k + 1);   // force full remount of results section
+      setUploadKey((key) => key + 1);
       setData({
-        _id:           json._id,
+        _id: json._id,
         totalMessages: json.total_messages,
-        totalUsers:    json.unique_participants,
-        chatStarted:   json.date_range?.from ?? "",
-        lastActivity:  json.date_range?.to   ?? "",
+        totalUsers: json.unique_participants,
+        chatStarted: formatDateLabel(json.date_range?.from ?? ""),
+        lastActivity: formatDateLabel(json.date_range?.to ?? ""),
         chartData,
+        hourlyData,
+        msgTypeData,
         top5,
       });
-
     } catch (err) {
       console.error("[Upload] Network error:", err);
       setError("Cannot reach server. Is Flask running on port 5000?");
     }
 
     setLoading(false);
-    e.target.value = "";   // reset so the same file can be re-selected
+    e.target.value = "";
   }
 
-  return (
-    <div style={{ minHeight: "100vh", background: "#0f0f1a", color: "#fff", fontFamily: "sans-serif" }}>
+  const tooltipStyle = {
+    background: theme.tooltipBg,
+    border: `1px solid ${theme.tooltipBorder}`,
+    borderRadius: 12,
+    color: theme.text,
+    fontSize: 13,
+    boxShadow: surfaceShadow,
+  };
 
-      {/* Header */}
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: dark
+        ? "radial-gradient(circle at top, rgba(109,94,246,0.22) 0%, rgba(15,15,26,1) 38%)"
+        : "radial-gradient(circle at top, rgba(109,94,246,0.10) 0%, rgba(240,244,252,1) 38%)",
+      color: theme.text,
+      fontFamily: "'Segoe UI', 'Inter', sans-serif",
+      transition: "background 0.3s, color 0.3s",
+    }}>
       <div style={{
-        padding: "16px 32px", borderBottom: "1px solid #222",
-        display: "flex", justifyContent: "space-between", alignItems: "center",
+        padding: "20px clamp(20px, 4vw, 40px)",
+        borderBottom: `1px solid ${theme.headerBorder}`,
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: 16,
+        background: dark ? "rgba(22, 24, 38, 0.78)" : "rgba(255, 255, 255, 0.82)",
+        backdropFilter: "blur(14px)",
+        transition: "background 0.3s",
       }}>
         <div>
-          <h1 style={{ margin: 0, color: "#7B7BCC", fontSize: 22 }}>WhatsApp Chat Analyzer</h1>
-          <p style={{ margin: 0, color: "#666", fontSize: 13 }}>Last 7 days of activity</p>
+          <h1 style={{ margin: 0, color: ACCENT_SOFT, fontSize: "clamp(24px, 4vw, 32px)", fontWeight: 800, letterSpacing: -0.6 }}>
+            WhatsApp Chat Analyzer
+          </h1>
+          <p style={{ margin: "6px 0 0", color: theme.subtext, fontSize: 14, lineHeight: 1.5 }}>
+            Upload a WhatsApp chat export to explore participation, activity trends, and recent conversations.
+          </p>
         </div>
-        {data && (
-          <div style={{
-            background: "#1a1a2e", border: "1px solid #333",
-            padding: "6px 16px", borderRadius: 20, fontSize: 13, color: "#ccc",
-          }}>
-            {data.totalMessages} messages · {data.totalUsers} users
-          </div>
-        )}
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          {data && (
+            <div style={{
+              background: theme.pillBg,
+              border: `1px solid ${theme.pillBorder}`,
+              padding: "8px 16px",
+              borderRadius: 999,
+              fontSize: 13,
+              color: theme.pillText,
+              fontWeight: 600,
+            }}>
+              {data.totalMessages} messages · {data.totalUsers} participants
+            </div>
+          )}
+
+          <button
+            onClick={() => setDark((current) => !current)}
+            title={dark ? "Switch to light mode" : "Switch to dark mode"}
+            style={{
+              background: dark ? "#232744" : "#e0e7ff",
+              border: `1px solid ${dark ? "#444" : "#c7d2fe"}`,
+              borderRadius: 999,
+              padding: "8px 14px",
+              cursor: "pointer",
+              fontSize: 18,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              transition: "background 0.2s",
+            }}
+          >
+            {dark ? "☀️" : "🌙"}
+            <span style={{ fontSize: 12, color: dark ? "#cbd5e1" : "#4338ca", fontWeight: 700 }}>
+              {dark ? "Light" : "Dark"}
+            </span>
+          </button>
+        </div>
       </div>
 
-      <div style={{ padding: "40px 32px", maxWidth: 1200, margin: "0 auto" }}>
-
-        {/* Upload zone */}
+      <div style={{ padding: "clamp(24px, 5vw, 48px) clamp(20px, 4vw, 32px)", maxWidth: 1240, margin: "0 auto" }}>
         <div style={{
-          border: "2px dashed #333", borderRadius: 12,
-          padding: "60px 40px", textAlign: "center", marginBottom: 48,
+          border: `2px dashed ${theme.uploadBorder}`,
+          borderRadius: 24,
+          padding: "clamp(32px, 7vw, 64px) clamp(20px, 5vw, 48px)",
+          textAlign: "center",
+          marginBottom: 40,
+          background: panelBg,
+          boxShadow: surfaceShadow,
+          transition: "background 0.3s",
         }}>
-          <div style={{ fontSize: 40, marginBottom: 16 }}>💬</div>
-          <h2 style={{ color: "#7B7BCC", marginBottom: 8 }}>Upload Chat Export</h2>
-          <p style={{ color: "#666", marginBottom: 24 }}>
-            Export a WhatsApp group chat as .txt and upload it here
+          <div style={{ fontSize: 42, marginBottom: 16 }}>💬</div>
+          <h2 style={{ color: ACCENT_SOFT, margin: "0 0 10px", fontSize: "clamp(24px, 4vw, 30px)" }}>
+            Upload Chat Export
+          </h2>
+          <p style={{ color: theme.subtext, margin: "0 auto 10px", maxWidth: 620, fontSize: 15, lineHeight: 1.6 }}>
+            Export a WhatsApp group chat as a <code style={{ fontFamily: "inherit" }}>.txt</code> file and upload it here to generate the dashboard.
+          </p>
+          <p style={{ color: theme.muted, margin: "0 auto 28px", maxWidth: 620, fontSize: 13, lineHeight: 1.6 }}>
+            Best results come from plain text exports. Media files are not required.
           </p>
           <label style={{
-            background: "#534AB7", color: "#fff",
-            padding: "12px 32px", borderRadius: 8, cursor: "pointer", fontSize: 15,
+            background: ACCENT,
+            color: "#fff",
+            padding: "14px 30px",
+            borderRadius: 12,
+            cursor: "pointer",
+            fontSize: 15,
+            fontWeight: 700,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 12px 24px rgba(109, 94, 246, 0.24)",
           }}>
             Choose File
             <input
@@ -235,93 +452,230 @@ export default function App() {
           </label>
         </div>
 
-        {/* Loading */}
         {loading && (
-          <div style={{ textAlign: "center", color: "#7B7BCC", padding: 40 }}>
-            Parsing chat file…
+          <div style={{ textAlign: "center", color: ACCENT_SOFT, padding: 40, fontSize: 15, fontWeight: 600 }}>
+            Parsing chat file...
           </div>
         )}
 
-        {/* Error */}
         {error && (
           <div style={{
-            background: "#2a1010", border: "1px solid #500",
-            color: "#f88", borderRadius: 8, padding: 16, marginBottom: 24,
+            background: dark ? "#2a1010" : "#fff1f2",
+            border: `1px solid ${dark ? "#500" : "#fca5a5"}`,
+            color: dark ? "#f88" : "#dc2626",
+            borderRadius: 12,
+            padding: 16,
+            marginBottom: 24,
           }}>
             {error}
           </div>
         )}
 
-        {/* Results — key=uploadKey forces React to fully unmount + remount this
-            entire section on every new upload, so no stale data can survive. */}
         {data && !loading && (
           <div key={uploadKey}>
+            <style>{FADE_IN}</style>
 
-            {/* Summary stats */}
             <div style={{
-              display: "grid", gridTemplateColumns: "repeat(4, 1fr)",
-              gap: 16, marginBottom: 32,
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+              gap: 16,
+              marginBottom: 32,
             }}>
               {[
-                { label: "TOTAL MESSAGES",      value: data.totalMessages, color: "#a78bfa", small: false },
-                { label: "UNIQUE PARTICIPANTS",  value: data.totalUsers,    color: "#60a5fa", small: false },
-                { label: "CHAT STARTED",         value: data.chatStarted  || "—", color: "#34d399", small: true },
-                { label: "LAST ACTIVITY",        value: data.lastActivity || "—", color: "#f97316", small: true },
-              ].map((s, i) => (
-                <div key={i} style={{
-                  background: "#1a1a2e", borderRadius: 12,
-                  padding: 20, border: "1px solid #2a2d3e",
-                }}>
-                  <p style={{ margin: "0 0 8px", fontSize: 11, color: "#6b7280", letterSpacing: 1 }}>
-                    {s.label}
+                { label: "TOTAL MESSAGES", value: data.totalMessages, color: ACCENT_SOFT, small: false },
+                { label: "UNIQUE PARTICIPANTS", value: data.totalUsers, color: INFO, small: false },
+                { label: "FIRST MESSAGE", value: data.chatStarted || "—", color: SUCCESS, small: true },
+                { label: "LATEST ACTIVITY", value: data.lastActivity || "—", color: WARNING, small: true },
+              ].map((stat, index) => (
+                <div
+                  key={index}
+                  style={{
+                    background: panelBg,
+                    borderRadius: 18,
+                    padding: 22,
+                    border: `1px solid ${theme.cardBorder}`,
+                    boxShadow: surfaceShadow,
+                    transition: "background 0.3s",
+                    ...anim(index * 0.08),
+                  }}
+                >
+                  <p style={{ margin: "0 0 10px", fontSize: 12, color: theme.statLabel, letterSpacing: 1.1, fontWeight: 700 }}>
+                    {stat.label}
                   </p>
-                  <p style={{ margin: 0, fontSize: s.small ? 16 : 28, fontWeight: 700, color: s.color, lineHeight: 1.4 }}>
-                    {s.value}
+                  <p style={{ margin: 0, fontSize: stat.small ? 18 : 32, fontWeight: 800, color: stat.color, lineHeight: 1.35 }}>
+                    {stat.value}
                   </p>
                 </div>
               ))}
             </div>
 
-            {/* Bar chart — last 7 days */}
             <div style={{
-              background: "#1a1a2e", borderRadius: 12,
-              padding: 24, marginBottom: 40,
+              background: panelBg,
+              borderRadius: 24,
+              padding: 24,
+              marginBottom: 32,
+              border: `1px solid ${theme.cardBorder}`,
+              boxShadow: surfaceShadow,
+              transition: "background 0.3s",
+              ...anim(0.35),
             }}>
-              <h3 style={{ marginTop: 0 }}>Activity — Last 7 Days</h3>
-              <p style={{ color: "#666", fontSize: 12, marginTop: -8, marginBottom: 16 }}>
-                Blue = active users &nbsp;|&nbsp; Green = new members joined (0 if none)
+              <h3 style={{ marginTop: 0, marginBottom: 6, color: theme.text, fontSize: 22 }}>
+                Activity in the Last 7 Days
+              </h3>
+              <p style={{ color: theme.subtext, fontSize: 14, marginTop: 0, marginBottom: 16, lineHeight: 1.5 }}>
+                Compare daily participation with members who joined during the same period.
               </p>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart data={data.chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#222" />
-                  <XAxis dataKey="date" stroke="#666" tick={{ fill: "#666", fontSize: 11 }} />
-                  <YAxis stroke="#666" tick={{ fill: "#666", fontSize: 11 }} allowDecimals={false} />
-                  <Tooltip contentStyle={{ background: "#111", border: "1px solid #333", borderRadius: 8 }} />
-                  <Legend wrapperStyle={{ color: "#999", fontSize: 13 }} />
-                  <Bar dataKey="activeUsers" name="Active Users"    fill="#5B8AF5" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="newJoiners"  name="New Joiners"     fill="#34d399" radius={[4, 4, 0, 0]} />
+                  <CartesianGrid strokeDasharray="3 3" stroke={theme.chartGrid} />
+                  <XAxis dataKey="date" stroke={theme.chartAxis} tick={{ fill: theme.chartAxis, fontSize: 12 }} />
+                  <YAxis stroke={theme.chartAxis} tick={{ fill: theme.chartAxis, fontSize: 12 }} allowDecimals={false} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    labelFormatter={(label) => `Date: ${label}`}
+                    formatter={(value, name) => [
+                      value.toLocaleString(),
+                      name === "Active Participants" ? "Active Participants" : "New Participants",
+                    ]}
+                  />
+                  <Legend wrapperStyle={{ color: theme.chartLegend, fontSize: 13, paddingTop: 8 }} />
+                  <Bar dataKey="activeUsers" name="Active Participants" fill="#5b8af5" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="newJoiners" name="New Participants" fill={SUCCESS} radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
 
-            {/* Top 5 user cards */}
-            <h3 style={{ marginBottom: 4 }}>Top 5 Most Active Users</h3>
-            <p style={{ color: "#666", fontSize: 13, marginBottom: 20 }}>
-              Click "Chat History" to view the user's most recent messages.
-            </p>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
-              {data.top5.map((user, i) => (
-                // key includes uploadKey so each card remounts on every new file
-                <UserCard key={`${uploadKey}-${user.user}`} user={user} rank={i} />
-              ))}
+            <div style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+              gap: 24,
+              marginBottom: 40,
+            }}>
+              <div style={{
+                background: panelBg,
+                borderRadius: 24,
+                padding: 24,
+                border: `1px solid ${theme.cardBorder}`,
+                boxShadow: surfaceShadow,
+                transition: "background 0.3s",
+                ...anim(0.45),
+              }}>
+                <h3 style={{ marginTop: 0, marginBottom: 4, color: theme.text, fontSize: 20 }}>
+                  Messages by Hour
+                </h3>
+                <p style={{ color: theme.subtext, fontSize: 14, marginTop: 0, marginBottom: 16, lineHeight: 1.5 }}>
+                  Spot the busiest hours in the chat across the day.
+                </p>
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={data.hourlyData} margin={{ left: -20, right: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={theme.chartGrid} />
+                    <XAxis dataKey="hour" stroke={theme.chartAxis} tick={{ fill: theme.chartAxis, fontSize: 12 }} interval={2} />
+                    <YAxis stroke={theme.chartAxis} tick={{ fill: theme.chartAxis, fontSize: 12 }} allowDecimals={false} />
+                    <Tooltip
+                      contentStyle={tooltipStyle}
+                      labelFormatter={(label) => `Hour: ${label}`}
+                      formatter={(value) => [value.toLocaleString(), "Messages"]}
+                    />
+                    <Bar dataKey="messages" fill={ACCENT_SOFT} radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div style={{
+                background: panelBg,
+                borderRadius: 24,
+                padding: 24,
+                border: `1px solid ${theme.cardBorder}`,
+                display: "flex",
+                flexDirection: "column",
+                boxShadow: surfaceShadow,
+                transition: "background 0.3s",
+                ...anim(0.55),
+              }}>
+                <h3 style={{ marginTop: 0, marginBottom: 4, color: theme.text, fontSize: 20 }}>
+                  Message Types
+                </h3>
+                <p style={{ color: theme.subtext, fontSize: 14, marginTop: 0, marginBottom: 12, lineHeight: 1.5 }}>
+                  Breakdown of text, media, links, and deleted messages.
+                </p>
+                {data.msgTypeData.length === 0 ? (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: theme.muted }}>
+                    No data
+                  </div>
+                ) : (
+                  <div style={{ display: "flex", alignItems: "center", gap: 16, flex: 1, flexWrap: "wrap" }}>
+                    <ResponsiveContainer width="100%" height={220}>
+                      <PieChart>
+                        <Pie
+                          data={data.msgTypeData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={55}
+                          outerRadius={85}
+                          dataKey="value"
+                          paddingAngle={3}
+                        >
+                          {data.msgTypeData.map((entry, index) => (
+                            <Cell key={index} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={tooltipStyle}
+                          formatter={(value, name) => [value.toLocaleString(), name]}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                    <div style={{ flex: 1, minWidth: 220 }}>
+                      {data.msgTypeData.map((entry) => (
+                        <div
+                          key={entry.name}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            marginBottom: 12,
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <div
+                              style={{
+                                width: 10,
+                                height: 10,
+                                borderRadius: "50%",
+                                background: entry.color,
+                                flexShrink: 0,
+                              }}
+                            />
+                            <span style={{ color: theme.subtext, fontSize: 14 }}>{entry.name}</span>
+                          </div>
+                          <span style={{ color: entry.color, fontWeight: 700, fontSize: 15 }}>
+                            {entry.value.toLocaleString()}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
+            <h3 style={{ marginBottom: 4, color: theme.text, fontSize: 22, ...anim(0.65) }}>
+              Top 5 Most Active Users
+            </h3>
+            <p style={{ color: theme.subtext, fontSize: 14, marginBottom: 20, lineHeight: 1.5, ...anim(0.7) }}>
+              Open a card to view that participant&apos;s most recent messages and quick activity stats.
+            </p>
+            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+              {data.top5.map((user, index) => (
+                <UserCard key={`${uploadKey}-${user.user}`} user={user} rank={index} theme={theme} />
+              ))}
+            </div>
           </div>
         )}
       </div>
 
-      <div style={{ textAlign: "center", color: "#333", padding: 24, fontSize: 12 }}>
-        2026 WhatsApp Insights Engine — Developed using React & Flask
+      <div style={{ textAlign: "center", color: theme.footerText, padding: 24, fontSize: 12 }}>
+        2026 WhatsApp Insights Engine - Developed using React and Flask
       </div>
     </div>
   );
