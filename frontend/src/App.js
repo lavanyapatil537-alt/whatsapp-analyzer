@@ -16,7 +16,11 @@ const anim = (delay = 0) => ({
   animation: `fadeInUp 0.5s ease ${delay}s both`,
 });
 
-const API = "https://whatsapp-analyzer-sm9z.onrender.com";
+const API =
+  process.env.REACT_APP_API_URL ||
+  (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
+    ? "http://127.0.0.1:5000"
+    : "https://whatsapp-analyzer-sm9z.onrender.com");
 
 const DARK = {
   bg: "#0f0f1a",

@@ -18,6 +18,8 @@ client = MongoClient(MONGO_URI)
 db = client["whatsapp_analyzer"]
 history_collection = db["chat_history"]
 
+# Parser helpers for Android and iOS WhatsApp exports.
+
 
 # ── Regex patterns ─────────────────────────────────────────────────────────────
 
@@ -99,6 +101,138 @@ def extract_joiner(body):
 # Used to extract just the date from any timestamped line
 DATE_RE = re.compile(r'[\u200e\u200f\u202a\u202c]*\[?(\d{1,2}/\d{1,2}/\d{2,4})')
 
+CONTROL_CHARS_RE = re.compile(r'[\u200e\u200f\u202a\u202c\u2066-\u2069\ufeff]')
+TIMESTAMP_START_RE = re.compile(
+    r'^[\u200e\u200f\u202a\u202c\u2066-\u2069\ufeff]*\[?\d{1,2}/\d{1,2}/\d{2,4}',
+    re.UNICODE,
+)
+
+IOS_MESSAGE_RE = re.compile(
+    r'^'
+    r'\['
+    r'(\d{1,2}/\d{1,2}/\d{2,4})'
+    r',\s*'
+    r'(\d{1,2}:\d{2})(?::(\d{2}))?'
+    r'[\s\u00a0\u202f]*([AaPp][Mm])?'
+    r'\]'
+    r'\s+'
+    r'([^:]+?):\s'
+    r'(.*)$',
+    re.UNICODE,
+)
+
+ANDROID_MESSAGE_RE = re.compile(
+    r'^'
+    r'(\d{1,2}/\d{1,2}/\d{2,4})'
+    r',\s*'
+    r'(\d{1,2}:\d{2})(?::(\d{2}))?'
+    r'[\s\u00a0\u202f]*([AaPp][Mm])?'
+    r'\s*[-\u2013\u2014\u2212]\s*'
+    r'([^:]+?):\s'
+    r'(.*)$',
+    re.UNICODE,
+)
+
+IOS_SYSTEM_RE = re.compile(
+    r'^'
+    r'\['
+    r'(\d{1,2}/\d{1,2}/\d{2,4})'
+    r',\s*'
+    r'(\d{1,2}:\d{2})(?::(\d{2}))?'
+    r'[\s\u00a0\u202f]*([AaPp][Mm])?'
+    r'\]'
+    r'\s+'
+    r'(.*)$',
+    re.UNICODE,
+)
+
+ANDROID_SYSTEM_RE = re.compile(
+    r'^'
+    r'(\d{1,2}/\d{1,2}/\d{2,4})'
+    r',\s*'
+    r'(\d{1,2}:\d{2})(?::(\d{2}))?'
+    r'[\s\u00a0\u202f]*([AaPp][Mm])?'
+    r'\s*[-\u2013\u2014\u2212]\s*'
+    r'(.*)$',
+    re.UNICODE,
+)
+
+JOIN_BODY_RE = re.compile(r'\b(?:added|joined)\b', re.IGNORECASE)
+GROUP_SYSTEM_BODY_RE = re.compile(
+    r"\b(?:created|this group|group(?:'s)?|description|icon|subject)\b",
+    re.IGNORECASE,
+)
+
+
+def normalize_chat_line(line):
+    """Remove invisible directional marks that commonly appear in iOS exports."""
+    cleaned = CONTROL_CHARS_RE.sub("", line)
+
+    # Some exports arrive with mojibake instead of the original WhatsApp
+    # directional markers / narrow no-break spaces.
+    cleaned = (
+        cleaned
+        .replace("\u00e2\u20ac\u017d", "")   # "â€Ž" -> remove LRM mojibake
+        .replace("\u00e2\u20ac\u00af", " ")  # "â€¯" -> regular space
+    )
+
+    return cleaned.strip()
+
+
+def parse_message_line(line):
+    """
+    Parse a single timestamped WhatsApp line.
+
+    We try iOS first because its format is stricter: bracketed timestamp,
+    optional seconds, then "Name: text" without the Android dash separator.
+    """
+    normalized = normalize_chat_line(line)
+
+    for source, message_re, system_re in (
+        ("ios", IOS_MESSAGE_RE, IOS_SYSTEM_RE),
+        ("android", ANDROID_MESSAGE_RE, ANDROID_SYSTEM_RE),
+    ):
+        msg_match = message_re.match(normalized)
+        if msg_match:
+            date_str, time_str, seconds, ampm, user, text = msg_match.groups()
+            return "message", {
+                "source": source,
+                "date": date_str.strip(),
+                "time": time_str.strip(),
+                "seconds": (seconds or "").strip(),
+                "ampm": (ampm or "").strip().upper(),
+                "user": user.strip(),
+                "text": text.strip(),
+            }
+
+        sys_match = system_re.match(normalized)
+        if not sys_match:
+            continue
+
+        date_str = sys_match.group(1).strip()
+        body = sys_match.group(5).strip()
+
+        if JOIN_BODY_RE.search(body):
+            joiner = extract_joiner(body)
+            if joiner:
+                return "join", {
+                    "source": source,
+                    "date": date_str,
+                    "user": joiner,
+                    "text": body,
+                }
+
+        if GROUP_SYSTEM_BODY_RE.search(body):
+            return "group_system", {
+                "source": source,
+                "date": date_str,
+                "text": body,
+            }
+
+        return None, None
+
+    return None, None
+
 
 def parse_chat(content):
     """
@@ -108,50 +242,72 @@ def parse_chat(content):
         joins    — list of {date}  (one entry per new member event)
     """
     content = content.lstrip('\ufeff')   # strip UTF-8 BOM
+    raw_lines = content.splitlines()
     messages, joins, group_system_messages = [], [], []
-    unmatched = 0
+    unmatched_lines = []
+    message_count_by_source = defaultdict(int)
+    multiline_continuations = 0
+    current_message = None
 
-    for line in content.splitlines():
-        line = line.strip()
-        if not line:
+    print("[PARSE] First 5 raw lines (repr):")
+    for ln in raw_lines[:5]:
+        print(f"  {repr(ln)}")
+
+    for raw_line in raw_lines:
+        if not raw_line.strip():
+            if current_message:
+                current_message["text"] += "\n"
             continue
 
-        m = MSG_RE.match(line)
-        if m:
-            messages.append({
-                "date": m.group(1).strip(),
-                "time": m.group(2).strip(),
-                "ampm": m.group(3).strip().upper(),  # "AM", "PM", or ""
-                "user": m.group(4).strip(),
-                "text": m.group(5).strip(),
-            })
+        kind, payload = parse_message_line(raw_line)
+        if kind == "message":
+            messages.append(payload)
+            current_message = messages[-1]
+            message_count_by_source[payload["source"]] += 1
             continue
 
-        j = JOIN_RE.match(line)
-        if j:
-            joiner = extract_joiner(j.group(2))
-            if joiner:
-                joins.append({"date": j.group(1).strip(), "user": joiner})
+        if kind == "join":
+            joins.append({"date": payload["date"], "user": payload["user"]})
+            current_message = None
             continue
 
-        g = GROUP_SYSTEM_RE.match(line)
-        if g:
+        if kind == "group_system":
             group_system_messages.append({
-                "date": g.group(1).strip(),
-                "text": g.group(2).strip(),
+                "date": payload["date"],
+                "text": payload["text"],
             })
+            current_message = None
             continue
 
-        unmatched += 1
+        normalized = normalize_chat_line(raw_line)
+        if current_message and normalized and not TIMESTAMP_START_RE.match(normalized):
+            current_message["text"] += "\n" + normalized
+            multiline_continuations += 1
+            continue
 
-    print(f"[PARSE] Lines={len(content.splitlines())}  Messages={len(messages)}  "
-          f"Joins={len(joins)}  GroupSystem={len(group_system_messages)}  Unmatched={unmatched}")
+        if normalized:
+            unmatched_lines.append(normalized)
+        current_message = None
+
+    print(
+        f"[PARSE] Lines={len(raw_lines)}  Messages={len(messages)}  "
+        f"Joins={len(joins)}  GroupSystem={len(group_system_messages)}  "
+        f"MultilineContinuations={multiline_continuations}  Unmatched={len(unmatched_lines)}"
+    )
+    print(
+        f"[PARSE] Message sources: Android={message_count_by_source.get('android', 0)}  "
+        f"iOS={message_count_by_source.get('ios', 0)}"
+    )
     if messages:
         print(f"[PARSE] First → {messages[0]['date']}  {messages[0]['time']}  {messages[0]['user']}")
         print(f"[PARSE]  Last → {messages[-1]['date']}  {messages[-1]['time']}  {messages[-1]['user']}")
     else:
         print("[PARSE] *** ZERO messages matched. First 5 lines (repr):")
-        for ln in content.splitlines()[:5]:
+        for ln in raw_lines[:5]:
+            print(f"  {repr(ln)}")
+    if unmatched_lines:
+        print("[PARSE] First 5 unmatched normalized lines:")
+        for ln in unmatched_lines[:5]:
             print(f"  {repr(ln)}")
 
     return messages, joins, group_system_messages
