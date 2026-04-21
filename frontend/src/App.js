@@ -110,8 +110,9 @@ function UserCard({ user, rank, theme }) {
       border: `1px solid ${open ? ACCENT : theme.cardBorder}`,
       borderRadius: 20,
       padding: 20,
-      minWidth: 220,
-      flex: "1 1 240px",
+      width: 240,
+      minWidth: 240,
+      flex: "0 0 240px",
       boxShadow: getCardShadow(theme),
       transition: "background 0.3s, border 0.3s, transform 0.2s",
     }}>
@@ -666,7 +667,7 @@ export default function App() {
             <p style={{ color: theme.subtext, fontSize: 14, marginBottom: 20, lineHeight: 1.5, ...anim(0.7) }}>
               Open a card to view that participant&apos;s most recent messages and quick activity stats.
             </p>
-            <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+            <div style={{ display: "flex", gap: 16, flexWrap: "nowrap", alignItems: "flex-start", overflowX: "auto", paddingBottom: 8 }}>
               {data.top5.map((user, index) => (
                 <UserCard key={`${uploadKey}-${user.user}`} user={user} rank={index} theme={theme} />
               ))}
