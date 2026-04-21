@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import re
+import os
 from collections import defaultdict
 from pymongo import MongoClient
 from bson.objectid import ObjectId
@@ -9,7 +10,11 @@ from bson.objectid import ObjectId
 app = Flask(__name__)
 CORS(app)
 
-client = MongoClient("mongodb://localhost:27017/")
+MONGO_URI = os.environ.get(
+    "MONGO_URI",
+    "mongodb+srv://Amanverma:AMAN9118359330@cluster0.dfctv22.mongodb.net/?retryWrites=true&w=majority&appName=Cluster"
+)
+client = MongoClient(MONGO_URI)
 db = client["whatsapp_analyzer"]
 history_collection = db["chat_history"]
 
@@ -129,7 +134,7 @@ def parse_chat(content):
         for ln in content.splitlines()[:5]:
             print(f"  {repr(ln)}")
 
-    return messages, joins
+    return messages, joins 
 
 
 # ── Date helpers ───────────────────────────────────────────────────────────────
@@ -471,4 +476,5 @@ def delete_record(id):
 
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port, debug=False)
