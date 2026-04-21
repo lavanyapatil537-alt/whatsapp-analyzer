@@ -16,7 +16,7 @@ const anim = (delay = 0) => ({
   animation: `fadeInUp 0.5s ease ${delay}s both`,
 });
 
-const API = "http://localhost:5000";
+const API = "https://whatsapp-analyzer-sm9z.onrender.com";
 
 const DARK = {
   bg: "#0f0f1a",
