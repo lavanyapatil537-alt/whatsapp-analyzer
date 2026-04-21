@@ -58,6 +58,18 @@ JOIN_RE = re.compile(
     re.UNICODE | re.IGNORECASE,
 )
 
+GROUP_SYSTEM_RE = re.compile(
+    r'[\u200e\u200f\u202a\u202c]*'
+    r'\[?'
+    r'(\d{1,2}/\d{1,2}/\d{2,4})'
+    r'[,\s]\s*\d{1,2}:\d{2}(?::\d{2})?'
+    r'[\s\u00a0\u202f]*(?:[AaPp][Mm])?[\s\u00a0\u202f]*'
+    r'\]?'
+    r'\s*[-\u2013\u2014\u2212]\s*'
+    r'(.+\b(?:created|this group|group(?:\'s)?|description|icon|subject)\b.*)',
+    re.UNICODE | re.IGNORECASE,
+)
+
 
 def extract_joiner(body):
     """
@@ -96,7 +108,7 @@ def parse_chat(content):
         joins    — list of {date}  (one entry per new member event)
     """
     content = content.lstrip('\ufeff')   # strip UTF-8 BOM
-    messages, joins = [], []
+    messages, joins, group_system_messages = [], [], []
     unmatched = 0
 
     for line in content.splitlines():
@@ -122,10 +134,18 @@ def parse_chat(content):
                 joins.append({"date": j.group(1).strip(), "user": joiner})
             continue
 
+        g = GROUP_SYSTEM_RE.match(line)
+        if g:
+            group_system_messages.append({
+                "date": g.group(1).strip(),
+                "text": g.group(2).strip(),
+            })
+            continue
+
         unmatched += 1
 
     print(f"[PARSE] Lines={len(content.splitlines())}  Messages={len(messages)}  "
-          f"Joins={len(joins)}  Unmatched={unmatched}")
+          f"Joins={len(joins)}  GroupSystem={len(group_system_messages)}  Unmatched={unmatched}")
     if messages:
         print(f"[PARSE] First → {messages[0]['date']}  {messages[0]['time']}  {messages[0]['user']}")
         print(f"[PARSE]  Last → {messages[-1]['date']}  {messages[-1]['time']}  {messages[-1]['user']}")
@@ -134,10 +154,22 @@ def parse_chat(content):
         for ln in content.splitlines()[:5]:
             print(f"  {repr(ln)}")
 
-    return messages, joins 
+    return messages, joins, group_system_messages
 
 
 # ── Date helpers ───────────────────────────────────────────────────────────────
+
+def is_group_chat(messages, joins, group_system_messages):
+    """
+    Return True when the export looks like a WhatsApp group chat.
+
+    We treat it as a group if at least 3 distinct senders appear in the
+    messages, if group join/add events were detected, or if WhatsApp emitted
+    group-only system lines such as group creation or subject changes.
+    """
+    participants = {m["user"].strip() for m in messages if m.get("user", "").strip()}
+    return len(participants) >= 3 or bool(joins) or bool(group_system_messages)
+
 
 def detect_date_format(date_strings):
     """
@@ -418,13 +450,21 @@ def analyze_chat():
             content = raw.decode('latin-1')
             print("[REQUEST] Decoded as latin-1")
 
-        messages, joins = parse_chat(content)
+        messages, joins, group_system_messages = parse_chat(content)
 
         if not messages:
             return jsonify({
                 "error": (
                     "No messages parsed. Check the Flask terminal for repr() "
                     "of the first 5 lines to see the exact file format."
+                )
+            }), 400
+
+        if not is_group_chat(messages, joins, group_system_messages):
+            return jsonify({
+                "error": (
+                    "This analyzer only supports WhatsApp group chat exports. "
+                    "Please upload a group chat document, not a one-to-one chat."
                 )
             }), 400
 

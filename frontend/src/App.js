@@ -362,10 +362,10 @@ export default function App() {
       }}>
         <div>
           <h1 style={{ margin: 0, color: ACCENT_SOFT, fontSize: "clamp(24px, 4vw, 32px)", fontWeight: 800, letterSpacing: -0.6 }}>
-            WhatsApp Chat Analyzer
+            WhatsApp Group Chat Analyzer
           </h1>
           <p style={{ margin: "6px 0 0", color: theme.subtext, fontSize: 14, lineHeight: 1.5 }}>
-            Upload a WhatsApp chat export to explore participation, activity trends, and recent conversations.
+            Upload a WhatsApp group chat export to explore participation, activity trends, and recent conversations.
           </p>
         </div>
 
@@ -467,6 +467,7 @@ export default function App() {
             padding: 16,
             marginBottom: 24,
           }}>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Upload error</div>
             {error}
           </div>
         )}
